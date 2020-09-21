@@ -1,5 +1,7 @@
 import os
+import time
 
+import redis
 import tornado.websocket
 import tornado.ioloop
 import tornado.web
@@ -9,10 +11,24 @@ class MainHandler(tornado.web.RequestHandler):
     def get(self):
         print('dupa           ')
         # self.write("Hello, world")
-        self.render("template.html", title="My title", items=['hello!', '2nd', '3'])
+        self.cache = redis.Redis(host='redis', port=6379)
+        count = self.get_hit_count()
+        print(count)
+        self.render("template.html", title="My title", items=['hello!', str(count), '🤷'])
+
+    def get_hit_count(self):
+        retries = 5
+        while True:
+            try:
+                return self.cache.incr('hits')
+            except redis.exceptions.ConnectionError as exc:
+                if retries == 0:
+                    raise exc
+                retries -= 1
+                time.sleep(0.5)
 
 class TestSocketHandler(tornado.websocket.WebSocketHandler):
-    def open(self):
+    async def open(self):
         print("WebSocket opened")
 
     def on_message(self, message):
