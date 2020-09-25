@@ -1,33 +1,40 @@
 <html>
-   <head>
-        <title>{{ title }}</title>
-        <script>
-            ws = new WebSocket('ws://localhost:8000/ws/');
-            ws.onmessage = function(evt) {
-            console.log("Message Received: " + evt.data)
-            }
-            ws.onopen = function(evt) { 
-                console.log("***Connection Opened***");
-                ws.send("just starting!"); 
-                ws.send("22222"); 
-            }
-            ws.onclose = function(evt) { 
-                console.log("***Connection Closed***");
-            }
-            function sendTime() {
-                var now = new Date();
-                var result = now.getHours() + ":" + now.getMinutes() + ":" + now.getSeconds();
-                console.log("sending: " + result);
-                ws.send(result);
-            }
-        </script>
-   </head>
-   <body>
-     <ul>
-       {% for item in items %}
-         <li>{{ escape(item) }}</li>
-       {% end %}
-     </ul>
-     <button onclick="sendTime()">🤷</button>
-   </body>
- </html>
+
+<head>
+  <title>{{ title }}</title>
+  <script>
+    ws = new WebSocket('ws://localhost:8000/ws/');
+    ws.onmessage = function (evt) {
+      console.log("Message Received: " + evt.data)
+    }
+    ws.onopen = function (evt) {
+      console.log("***Connection Opened***");
+      ws.send("just starting!");
+    }
+    ws.onclose = function (evt) {
+      console.log("***Connection Closed***");
+    }
+    function sendMessage(msg) {
+      console.log("sending: " + msg);
+      ws.send(msg);
+    }
+    function sendTime() {
+      var now = new Date();
+      var result = now.getHours() + ":" + now.getMinutes() + ":" + now.getSeconds();
+      sendMessage(result);
+    }
+  </script>
+</head>
+
+<body>
+  <ul>
+    {% for item in items %}
+    <li>{{ escape(item) }}</li>
+    {% end %}
+  </ul>
+  <button onclick="sendTime()">🤷</button>
+  <button onclick="sendTime()">⬅</button>
+  <button onclick="sendTime()">➡</button>
+</body>
+
+</html>
