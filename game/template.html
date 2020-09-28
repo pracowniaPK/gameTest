@@ -6,6 +6,12 @@
     ws = new WebSocket('ws://localhost:8000/ws/');
     ws.onmessage = function (evt) {
       console.log("Message Received: " + evt.data)
+      if (String(evt.data).startsWith('update:')){
+        var vars = String(evt.data).split(":")[1];
+        var x = Number(vars.split(",")[0]);
+        var y = Number(vars.split(",")[1]);
+        drawCircle(x, y);
+      }
     }
     ws.onopen = function (evt) {
       console.log("***Connection Opened***");
@@ -14,6 +20,7 @@
     ws.onclose = function (evt) {
       console.log("***Connection Closed***");
     }
+
     function sendMessage(msg) {
       console.log("sending: " + msg);
       ws.send(msg);
@@ -22,6 +29,16 @@
       var now = new Date();
       var result = now.getHours() + ":" + now.getMinutes() + ":" + now.getSeconds();
       sendMessage(result);
+    }
+
+    function drawCircle(x, y){
+      var c = document.getElementById("main_canvas");
+      var ctx = c.getContext("2d");
+      ctx.fillStyle = "#FFFFFF";
+      ctx.fillRect(0, 0, 200, 200);
+      ctx.beginPath();
+      ctx.arc(x, y, 10, 0, 2 * Math.PI);
+      ctx.stroke();
     }
   </script>
 </head>
@@ -33,8 +50,9 @@
     {% end %}
   </ul>
   <button onclick="sendTime()">🤷</button>
-  <button onclick="sendTime()">⬅</button>
-  <button onclick="sendTime()">➡</button>
+  <button onclick="sendMessage('left')">⬅</button>
+  <button onclick="sendMessage('right')">➡</button>
+  <canvas height="200" width="200" id="main_canvas"></canvas>
 </body>
 
 </html>
