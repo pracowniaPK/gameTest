@@ -31,29 +31,76 @@ class MainHandler(tornado.web.RequestHandler):
 
 class TestSocketHandler(tornado.websocket.WebSocketHandler):
     async def open(self):
+        self.dt = .1
+        self.size = 200
         self.session_id = random.randint(1,1000)
         self.cache = redis.Redis(host='redis', port=6379)
         self.cache.hset(f'game{self.session_id}', 'alive', 'true')
         self.cache.hset(f'game{self.session_id}', 'x', 50)
         self.cache.hset(f'game{self.session_id}', 'y', 50)
+        self.cache.hset(f'game{self.session_id}', 'vx', 0)
+        self.cache.hset(f'game{self.session_id}', 'vy', 0)
         print(f'{self.session_id}>> WebSocket opened')
         a = self.cache.hget(f'game{self.session_id}', 'alive')
         print(a)
 
-        async def my_loop():
+        async def client_loop():
             while True:
                 if not self.cache.hget(f'game{self.session_id}', 'alive'):
                     print(f'  {self.session_id}>> Not alive :(')
                     break
-                x = int(self.cache.hget(f'game{self.session_id}', 'x'))
-                y = int(self.cache.hget(f'game{self.session_id}', 'y'))
-                print(f'{self.session_id}>> i\'still alive:', x, y)
+                x = float(self.cache.hget(f'game{self.session_id}', 'x'))
+                y = float(self.cache.hget(f'game{self.session_id}', 'y'))
                 self.write_message(
-                    f'update:{x},{y}'
+                    f'update:{int(x)},{int(y)}'
                     )
-                await tornado.gen.sleep(5)
+                await tornado.gen.sleep(self.dt)
 
-        tornado.ioloop.IOLoop.current().spawn_callback(my_loop)
+        async def game_loop():
+            ps = self.cache.pubsub()
+            ps.subscribe(f'input{self.session_id}')
+            while True:
+                if not self.cache.hget(f'game{self.session_id}', 'alive'):
+                    print(f'  {self.session_id}>> Not alive :(')
+                    break
+                
+                while True:
+                    messages = ps.get_message()
+                    if messages:
+                        print(f'{self.session_id}>> ', messages.get('data'))  
+
+                        msg = messages.get('data')
+                        if msg == b'left':
+                            vy = float(self.cache.hget(f'game{self.session_id}', 'vy'))
+                            vy = vy-1
+                            self.cache.hset(f'game{self.session_id}', 'vy', vy)
+                        if msg == b'right':
+                            vy = float(self.cache.hget(f'game{self.session_id}', 'vy'))
+                            vy = vy+1
+                            self.cache.hset(f'game{self.session_id}', 'vy', vy)
+                    else: 
+                        break
+
+                x = float(self.cache.hget(f'game{self.session_id}', 'x'))
+                y = float(self.cache.hget(f'game{self.session_id}', 'y'))
+                vx = float(self.cache.hget(f'game{self.session_id}', 'vx'))
+                vy = float(self.cache.hget(f'game{self.session_id}', 'vy'))
+                x += vx * self.dt
+                y += vy * self.dt
+                if y < 0:
+                    y = -y
+                    self.cache.hset(f'game{self.session_id}', 'vy', -vy*.5)
+                if y > self.size:
+                    y = self.size * 2 - y
+                    self.cache.hset(f'game{self.session_id}', 'vy', -vy*.5)
+                self.cache.hset(f'game{self.session_id}', 'x', x)
+                self.cache.hset(f'game{self.session_id}', 'y', y)
+                print(f'{self.session_id}>>', x, y, vx, vy)
+
+                await tornado.gen.sleep(self.dt)
+
+        tornado.ioloop.IOLoop.current().spawn_callback(client_loop)
+        tornado.ioloop.IOLoop.current().spawn_callback(game_loop)
         print(f'{self.session_id}>> open end')
 
     def on_message(self, message):
@@ -61,15 +108,9 @@ class TestSocketHandler(tornado.websocket.WebSocketHandler):
         self.write_message(u'You said: ' + message)
 
         if message == 'left':
-            y = int(self.cache.hget(f'game{self.session_id}', 'y'))
-            y = max(0, y-5)
-            self.cache.hset(f'game{self.session_id}', 'y', y)
-            print('left', y)
+            self.cache.publish(f'input{self.session_id}', 'left')
         if message == 'right':
-            y = int(self.cache.hget(f'game{self.session_id}', 'y'))
-            y = min(100, y+5)
-            self.cache.hset(f'game{self.session_id}', 'y', y)
-            print('right', y)
+            self.cache.publish(f'input{self.session_id}', 'right')
 
     def on_close(self):
         print(f'{self.session_id}>> WebSocket closed')
